@@ -219,6 +219,26 @@ class WhenTestingSecrets(test_client.BaseEntityResource):
             except AttributeError:
                 pass
 
+    def test_should_get_with_federation_disabled(self):
+        # Make a fake "federated href" with the same ID
+        other_href = "http://mysite.com/secrets/" + self.entity_id
+        data = self.secret.get_dict(other_href)
+
+        # Set up the API mock to expect the "local href"
+        m = self.responses.get(self.entity_href, json=data)
+
+        # Fetch via he "federated href" but disable federation
+        secret = self.manager.get(secret_ref=other_href,
+                                  federation=False)
+        self.assertIsInstance(secret, secrets.Secret)
+        self.assertEqual(other_href, secret.secret_ref)
+
+        # Check an attribute to trigger lazy-load
+        self.assertEqual(self.secret.name, secret.name)
+
+        # Verify the "local href" was used to make the GET call
+        self.assertEqual(self.entity_href, m.last_request.url)
+
     def test_should_get_lazy(self):
         data = self.secret.get_dict(self.entity_href)
         m = self.responses.get(self.entity_href, json=data)

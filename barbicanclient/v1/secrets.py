@@ -89,7 +89,7 @@ class Secret(SecretFormatter):
                  payload_content_type=None, payload_content_encoding=None,
                  secret_ref=None, created=None, updated=None,
                  content_types=None, status=None, secret_type=None,
-                 creator_id=None):
+                 creator_id=None, federation=False):
         """Secret objects should not be instantiated directly.
 
         You should use the `create` or `get` methods of the
@@ -115,6 +115,7 @@ class Secret(SecretFormatter):
         )
         self._acl_manager = acl_manager.ACLManager(api)
         self._acls = None
+        self._federation = federation
 
     @property
     def secret_ref(self):
@@ -411,7 +412,13 @@ class Secret(SecretFormatter):
 
     def _fill_lazy_properties(self):
         if self._secret_ref and not self._name:
-            result = self._api.get(self._secret_ref)
+            if not self._federation:
+                secret_uuid = base.validate_ref(self._secret_ref, 'Secret')
+                secret_ref = "{entity}/{uuid}".format(
+                    entity=Secret._entity, uuid=secret_uuid)
+            else:
+                secret_ref = self._secret_ref
+            result = self._api.get(secret_ref)
             self._fill_from_data(
                 name=result.get('name'),
                 expiration=result.get('expiration'),
@@ -441,7 +448,7 @@ class SecretManager(base.BaseEntityManager):
     def __init__(self, api):
         super(SecretManager, self).__init__(api, 'secrets')
 
-    def get(self, secret_ref, payload_content_type=None):
+    def get(self, secret_ref, payload_content_type=None, federation=True):
         """Retrieve an existing Secret from Barbican
 
         :param str secret_ref: Full HATEOAS reference to a Secret
@@ -459,11 +466,12 @@ class SecretManager(base.BaseEntityManager):
         return Secret(
             api=self._api,
             payload_content_type=payload_content_type,
-            secret_ref=secret_ref
+            secret_ref=secret_ref,
+            federation=federation
         )
 
     def update(self, secret_ref, payload=None):
-        """Update an existing Secret from Barbican
+        """Update an existing Secret in Barbican
 
         :param str secret_ref: Full HATEOAS reference to a Secret
         :param str payload: New payload to add to secret
